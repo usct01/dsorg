@@ -4,13 +4,16 @@
 <b>Center of Excellence;
 **[#Darkorange] Process
 ***[#Orange] AI Development Lifecycle
-****_ <i>Defines the Stages required to develop and deploy AI solutions.
+****_: <i>Defines the Stages required 
+to develop and deploy AI solutions;
 ***[#Orange] Data Management
 ****_ <i>How data is collected, stored, and analyzed
 ***[#Orange] Model Development & Validation
-****_ <i>EDA, Feature Engineering/Selection, Training & Model Selection
+****_: <i>EDA, Feature Engineering/Selection,
+Training & Model Selection;
 ***[#Orange] Model Deployment, Testing & Monitoring
-****_  <i>Deploy and Monitor Model inProduction Environment
+****_:  <i>Deploy and Monitor Model
+in Production Environment;
 **[#Physical] Platform
 ***[#Technology] Data Platforms
 ****_ <i>Computation, Storage
