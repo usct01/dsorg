@@ -1,0 +1,35 @@
+@startmindmap
+
+*[#Strategy]: <b>Modeling
+<b>Center of Excellence;
+**[#Darkorange] Process
+***[#Orange] AI Development Lifecycle
+****_ <i>Defines the Stages required to develop and deploy AI solutions.
+***[#Orange] Data Management
+****_ <i>How data is collected, stored, and analyzed
+***[#Orange] Model Development & Validation
+****_ <i>EDA, Feature Engineering/Selection, Training & Model Selection
+***[#Orange] Model Deployment, Testing & Monitoring
+****_  <i>Deploy and Monitor Model inProduction Environment
+**[#Physical] Platform
+***[#Technology] Data Platforms
+****_ <i>Computation, Storage
+***[#Technology] Machine Learning Frameworks
+****_ <i>H2o, Scikit Learn, Tensorflow
+***[#Technology] DevOps Tools
+****_ <i>Git, DataRobot
+***[#Technology] Cloud Services
+****_ <i>GCP, Azure, AWS
+left side
+**[#Steelblue] People
+***[#Skyblue] AI Strategist
+****_: <i>Managing the AI projects
+<i>from initiation to closure;
+***[#Skyblue] Data Scientist
+****_ <i>Develop Models to solve business problems
+***[#Skyblue] Data Engineer
+****_ <i>Building & Maintaining the data pipeline
+***[#Skyblue] ML Ops Engineer
+****_: <i>Deployment of Models and
+Maintaining infrastructure ;
+@endmindmap
