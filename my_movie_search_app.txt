@@ -1,0 +1,373 @@
+- my_movie_search_app
+    - backend
+        - main.py
+        - movie_search.py
+        - movie_embeddings.py
+        - annoy_index.py
+        - milvus_client.py
+        - requirements.txt
+    - frontend
+        - index.html
+        - style.css
+        - script.js
+    - data
+        - movies.csv
+    - README.md
+
+
+Here is a breakdown of the different components and files in the repository structure:
+
+Backend
+main.py: This is the main entry point of the backend application. It initializes the necessary components and starts the server.
+movie_search.py: This file contains the logic for handling movie search requests and returning the search results to the frontend.
+movie_embeddings.py: This file is responsible for generating movie embeddings based on movie titles and summaries.
+annoy_index.py: This file creates an Annoy index and provides functions for indexing movie embeddings and performing similarity searches.
+milvus_client.py: This file interacts with the Milvus vector database and provides functions for storing and retrieving movie embeddings.
+requirements.txt: This file lists the required Python packages and their versions.
+
+Frontend
+index.html: This file is the main HTML template for the frontend. It contains the search input field, search results container, and other necessary elements.
+style.css: This file contains the CSS styles for the frontend, defining the look and layout of the search interface.
+script.js: This file contains the JavaScript code for handling user interactions, making API requests to the backend, and updating the search results dynamically.
+
+Data
+movies.csv: This file contains the movie dataset with columns for movie titles, summaries, and other relevant information.
+
+README.md
+
+This file provides documentation and instructions for setting up and running the application.
+
+-----
+backend/main.py
+
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
+from .movie_search import search_movies
+
+app = FastAPI()
+
+# Mount the frontend's static files
+app.mount("/", StaticFiles(directory="../frontend"), name="static")
+
+
+@app.get("/", response_class=HTMLResponse)
+async def read_index():
+    # Return the main HTML file
+    return open("../frontend/index.html").read()
+
+
+@app.get("/search")
+async def search(query: str):
+    # Call the movie search function and return the search results as JSON
+    results = search_movies(query)
+    return {"results": results}
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+-----
+backend/movie_search.py
+from .movie_embeddings import get_movie_embedding
+from .annoy_index import AnnoyIndex
+from .milvus_client import MilvusClient
+
+# Initialize the Annoy index and Milvus client
+annoy_index = AnnoyIndex()
+milvus_client = MilvusClient()
+
+
+def search_movies(query):
+    # Get the movie embedding for the query
+    query_embedding = get_movie_embedding(query)
+
+    # Search similar movies using the Annoy index
+    movie_ids = annoy_index.search(query_embedding)
+
+    # Retrieve movie details from the Milvus client
+    results = milvus_client.get_movies(movie_ids)
+
+    return results
+
+-----
+backend/movie_embeddings.py
+
+import numpy as np
+from sentence_transformers import SentenceTransformer
+
+# Load the pre-trained BERT model for sentence embeddings
+model = SentenceTransformer("bert-base-nli-mean-tokens")
+
+
+def get_movie_embedding(text):
+    # Generate the sentence embedding for the given text
+    embedding = model.encode([text])[0]
+    return embedding
+
+-----------
+backend/annoy_index.py
+
+from annoy import AnnoyIndex
+
+# Define the dimension of the embeddings
+EMBEDDING_DIM = 768
+
+# Initialize the Annoy index
+index = AnnoyIndex(EMBEDDING_DIM, "angular")
+
+
+class AnnoyIndex:
+    def __init__(self):
+        # Load the pre-built index
+        index.load("index.ann")
+
+    def search(self, query_embedding, num_results=10):
+        # Search the index for similar items to the query embedding
+        movie_ids, _ = index.get_nns_by_vector(query_embedding, num_results, include_distances=True)
+        return movie_ids
+
+------------
+backend/milvus_client.py
+
+from pymilvus import connections, Collection, FieldSchema, CollectionSchema, DataType
+
+# Connect to the Milvus server
+connections.connect()
+
+# Define the collection name and schema
+COLLECTION_NAME = "movies"
+collection_schema = CollectionSchema(
+    fields=[
+        FieldSchema("movie_id", DataType.INT64),
+        FieldSchema("title", DataType.STRING),
+        FieldSchema("summary", DataType.STRING),
+    ],
+    primary_field="movie_id"
+)
+
+# Create or load the collection
+if COLLECTION_NAME in connections.get_connection().list_collections():
+    collection = Collection(COLLECTION_NAME)
+else:
+    collection = Collection.create(COLLECTION_NAME, collection_schema)
+
+
+class MilvusClient:
+    def __init__(self):
+        pass
+
+    def insert_movie(self, movie_id, title, summary, embedding):
+        # Insert a movie into the collection with its details and embedding
+        entities = [
+            {"movie_id": movie_id, "title": title, "summary": summary, "embedding": embedding.tolist()}
+        ]
+        collection.insert(entities)
+
+    def get_movies(self, movie_ids):
+        # Retrieve movie details from the collection based on the given movie IDs
+        search_param = {
+            "bool": {
+                "must": [
+                    {"term": {"movie_id": movie_id}}
+                    for movie_id in movie_ids
+                ]
+            }
+        }
+        query_result = collection.search(search_param, fields=["movie_id", "title", "summary"])
+        results = query_result.entities
+        return results
+
+-----------
+backend/requirements.txt
+fastapi==0.68.1
+uvicorn==0.15.0
+sentence-transformers==2.1.0
+pymilvus==2.0.0
+annoy==1.17.0
+
+
+-------
+frontend/index.html
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Movie Search</title>
+    <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Movie Search</h1>
+        <input type="text" id="searchInput" placeholder="Search movies...">
+        <div id="searchResults"></div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
+
+-------
+frontend/style.css
+
+.container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+#searchInput {
+    width: 100%;
+    padding: 10px;
+    font-size: 16px;
+}
+
+#searchResults {
+    margin-top: 20px;
+}
+
+.movieResult {
+    border: 1px solid #ccc;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+.movieTitle {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.movieSummary {
+    color: #333;
+}
+
+--------
+frontend/script.js
+
+const searchInput = document.getElementById("searchInput");
+const searchResults = document.getElementById("searchResults");
+
+searchInput.addEventListener("input", () => {
+    const query = searchInput.value;
+    searchMovies(query);
+});
+
+async function searchMovies(query) {
+    // Clear previous search results
+    searchResults.innerHTML = "";
+
+    if (query.trim() !== "") {
+        // Make a GET request to the backend API
+        const response = await fetch(`/search?query=${encodeURIComponent(query)}`);
+        const data = await response.json();
+
+        if (data.results.length === 0) {
+            searchResults.innerHTML = "<p>No results found.</p>";
+        } else {
+            data.results.forEach((result) => {
+                const movieResult = document.createElement("div");
+                movieResult.classList.add("movieResult");
+
+                const movieTitle = document.createElement("h2");
+                movieTitle.classList.add("movieTitle");
+                movieTitle.textContent = result.title;
+                movieResult.appendChild(movieTitle);
+
+                const movieSummary = document.createElement("p");
+                movieSummary.classList.add("movieSummary");
+                movieSummary.textContent = result.summary;
+                movieResult.appendChild(movieSummary);
+
+                searchResults.appendChild(movieResult);
+            });
+        }
+    }
+}
+
+
+
+
+-------
+Test Code
+
+import milvus
+from annoy import AnnoyIndex
+
+milvus_client = milvus.Milvus(host='localhost', port='19530')
+
+#Define the movie data and embedding vectors
+movie_data = [
+    {"title": "Movie 1", "genre": "Action", "vector": [0.1, 0.2, 0.3, ...]},
+    {"title": "Movie 2", "genre": "Comedy", "vector": [0.4, 0.5, 0.6, ...]},
+    # Add more movie data with their respective embedding vectors
+]
+
+# Create a list to store movie IDs
+movie_ids = []
+
+# Create a list to store embedding vectors
+embedding_vectors = []
+
+# Insert movie data into Milvus database and store the IDs and vectors
+for movie in movie_data:
+    status, ids = milvus_client.insert(collection_name='movies', records=[movie['vector']])
+    movie_ids.append(ids[0])
+    embedding_vectors.append(movie['vector'])
+
+#  Build the ANNOY index
+# Create an ANNOY index with the same number of dimensions as the embedding vectors
+annoy_index = AnnoyIndex(len(embedding_vectors[0]), 'euclidean')
+
+# Add the embedding vectors to the ANNOY index
+for i, vector in enumerate(embedding_vectors):
+    annoy_index.add_item(i, vector)
+
+# Build the ANNOY index
+annoy_index.build(n_trees=10)
+
+# Define the search function
+def search_movies(query_vector, top_k=5):
+    # Search for the nearest neighbors in the ANNOY index
+    movie_indices = annoy_index.get_nns_by_vector(query_vector, top_k)
+
+    # Retrieve the movie IDs from the Milvus database using the indices
+    movie_ids = [movie_ids[i] for i in movie_indices]
+
+    # Retrieve the movie data from the Milvus database using the IDs
+    movie_data = milvus_client.get_entity_by_id(collection_name='movies', ids=movie_ids)
+
+    return movie_data
+
+# Test the movie search
+# Define a sample query vector
+query_vector = [0.2, 0.3, 0.4, ...]
+
+# Search for the top 5 movies similar to the query vector
+results = search_movies(query_vector, top_k=5)
+
+# Print the movie titles and genres
+for result in results:
+    print(f"Title: {result['title']}, Genre: {result['genre']}")
+
+
+-------
+
+Steps:
+Define the purpose and scope of the tool: Determine what the tool will do and what features it will have. In this case, the tool seems to provide recommendations for different types of movies based on specific themes or topics.
+Gather movie data: Collect a comprehensive database of movies, including information such as titles, genres, ratings, release dates, and descriptions. You can obtain this data from various sources, such as movie databases, APIs, or by manually curating the information.
+Categorize movies: Create categories or tags to classify movies based on different themes or topics. For example, you could have categories like "Growth Mindset Movies," "STEM Classroom Movies," "Business Movies," "Artificial Intelligence Movies," etc.
+Implement search and recommendation functionality: Develop a search feature that allows users to search for movies based on specific criteria, such as genre, rating, or release date. Additionally, create a recommendation system that suggests movies based on the selected category or theme.
+Design and user interface: Create an intuitive and visually appealing user interface that allows users to easily navigate and interact with the tool. Consider including features like filtering options, movie trailers, user ratings, and reviews.
+Backend development: Build the backend infrastructure to handle user requests, process search queries, and retrieve movie data from the database. This may involve using programming languages like Python, databases like MySQL or MongoDB, and web frameworks like Django or Flask.
+Frontend development: Develop the frontend of the tool using HTML, CSS, and JavaScript. Implement the user interface, search functionality, and movie recommendation features. Consider using frontend frameworks like React or Angular for a more efficient development process.
+Testing and debugging: Thoroughly test the tool to ensure that it functions correctly and provides accurate movie recommendations. Identify and fix any bugs or issues that arise during testing.
+Deployment and hosting: Deploy the tool on a web server or cloud platform, making it accessible to users. Consider using platforms like AWS, Azure, or Heroku for hosting.
+Continuous improvement and updates: Regularly update the movie database, add new features, and address user feedback to improve the tool's functionality and user experience.
+
